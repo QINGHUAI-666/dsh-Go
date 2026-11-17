@@ -1,0 +1,181 @@
+name: Build APK
+
+# Builds an installable arm64 (or x64) APK from this fork:
+#   1. the bundled Linux runtime (runtime/build-runtime.sh), then
+#   2. the Flutter release APK (tooling/build-apk.sh).
+#
+# Run it from Actions → Build APK → Run workflow. Pushing to main or to the
+# ci/build-apk branch also starts a build. The APK is uploaded as a workflow
+# artifact; it is signed with the debug key unless app/android/key.properties
+# and a keystore are provided by the repository owner.
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: "APK ABI (arm64 for phones, x64 for emulators)"
+        required: true
+        type: choice
+        default: arm64
+        options:
+          - arm64
+          - x64
+      build_name:
+        description: "Optional version name (default: app/pubspec.yaml)"
+        required: false
+        default: ""
+        type: string
+  push:
+    branches:
+      - main
+      - ci/build-apk
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.7
+  NODE_VERSION: 24.22.1
+  GRADLE_VERSION: 9.3.1
+  TZ: Asia/Shanghai
+  BUILD_NAME: ${{ github.event.inputs.build_name }}
+
+jobs:
+  apk:
+    name: Runtime + APK (${{ github.event.inputs.flavor || 'arm64' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Resolve target flavor
+        id: target
+        shell: bash
+        run: |
+          flavor="${{ github.event.inputs.flavor || 'arm64' }}"
+          case "$flavor" in
+            arm64) abi=arm64-v8a ;;
+            x64)   abi=x86_64 ;;
+            *) echo "unknown flavor: $flavor" >&2; exit 2 ;;
+          esac
+          echo "flavor=$flavor" >> "$GITHUB_OUTPUT"
+          echo "abi=$abi" >> "$GITHUB_OUTPUT"
+          echo "Building $flavor ($abi)"
+
+      - name: Install host build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            zstd gpgv file xz-utils unzip curl python3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Install Android platform, build-tools, NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$(dirname "$(dirname "$(command -v flutter)")")"
+          echo "FLUTTER_ROOT=$flutter_root" >> "$GITHUB_ENV"
+          flutter config --no-analytics --android-sdk "$ANDROID_HOME"
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+
+          gradle_ext="$(find "$flutter_root/packages/flutter_tools/gradle/src/main" -name 'FlutterExtension.*' -print -quit)"
+          compile_sdk="$(grep -oE 'compileSdkVersion[^0-9]*[0-9]+' "$gradle_ext" | grep -oE '[0-9]+$' | head -1)"
+          ndk_version="$(grep -oE 'ndkVersion[^\"]*\"[0-9.]+' "$gradle_ext" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          [[ -n "$compile_sdk" ]] || compile_sdk=36
+          [[ -n "$ndk_version" ]] || { echo "cannot read Flutter NDK version" >&2; exit 1; }
+          echo "compileSdk=$compile_sdk ndk=$ndk_version"
+          sdkmanager --sdk_root="$ANDROID_HOME" \
+            "platform-tools" \
+            "platforms;android-$compile_sdk" \
+            "build-tools;$compile_sdk.0.0" \
+            "ndk;$ndk_version" \
+            "cmake;3.22.1"
+          yes | flutter doctor --android-licenses >/dev/null || true
+
+      - name: Restore runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: runtime/.cache
+          key: runtime-downloads-v1-${{ runner.os }}-${{ hashFiles('runtime/build-runtime.sh', 'runtime/locks/**', 'runtime/patches/**') }}
+          restore-keys: |
+            runtime-downloads-v1-${{ runner.os }}-
+
+      - name: Build Android Linux runtime
+        env:
+          RUNTIME_ABI: ${{ steps.target.outputs.abi }}
+        run: |
+          bash runtime/build-runtime.sh "$RUNTIME_ABI"
+          python3 -I tooling/check_runtime_bundle.py "${{ steps.target.outputs.flavor }}"
+
+      - name: Flutter dependencies and local.properties
+        working-directory: app
+        run: |
+          flutter pub get --enforce-lockfile
+          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_ROOT" > android/local.properties
+
+      - name: Build APK
+        env:
+          DSH_BETA_TOKEN_FILE: ""
+        run: |
+          args=(-f "${{ steps.target.outputs.flavor }}")
+          if [[ -n "$BUILD_NAME" ]]; then
+            args+=(--build-name "$BUILD_NAME")
+          fi
+          bash tooling/build-apk.sh "${args[@]}"
+
+      - name: Report APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/app/outputs/flutter-apk/app-${{ steps.target.outputs.flavor }}-release.apk"
+          [[ -f "$apk" ]] || { echo "missing $apk" >&2; exit 1; }
+          ls -lh "$apk"
+          sha256sum "$apk" | tee /tmp/apk.sha256
+          {
+            echo "### DSH Go APK"
+            echo
+            echo "- flavor: \`${{ steps.target.outputs.flavor }}\`"
+            echo "- size: $(stat -c %s "$apk") bytes"
+            echo "- sha256: \`$(cut -d' ' -f1 /tmp/apk.sha256)\`"
+            echo "- signing: debug key (no release keystore in this repository)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dsh-go-${{ steps.target.outputs.flavor }}-apk
+          path: app/build/app/outputs/flutter-apk/app-${{ steps.target.outputs.flavor }}-release.apk
+          if-no-files-found: error
+          retention-days: 14
