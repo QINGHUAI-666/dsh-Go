@@ -142,6 +142,14 @@ jobs:
       - name: Build Android Linux runtime
         env:
           RUNTIME_ABI: ${{ steps.target.outputs.abi }}
+          # GitHub-hosted runners cannot reach the China mirrors the default
+          # recipe uses; build from the upstream hosts instead.
+          UBUNTU_MIRROR: https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release
+          NODE_MIRROR: https://nodejs.org/dist
+          NPM_REGISTRY: https://registry.npmjs.org
+          UBUNTU_ARCHIVE_AMD64: https://archive.ubuntu.com/ubuntu
+          UBUNTU_ARCHIVE_ARM64: https://ports.ubuntu.com/ubuntu-ports
+          PBS_MIRROR: https://github.com/astral-sh/python-build-standalone/releases/download
         run: |
           bash runtime/build-runtime.sh "$RUNTIME_ABI"
           python3 -I tooling/check_runtime_bundle.py "${{ steps.target.outputs.flavor }}"
