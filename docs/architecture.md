@@ -198,13 +198,24 @@ HomeShell = [ChatScreen] + [SessionsDrawer 左] + [QuickPanel 右] + [SystemEntr
 | `RuntimePlugin.kt` | `dsh/runtime` + `dsh/runtime/events`：install/start/stop/reset/safe/LKG |
 | `RuntimeController.kt` | 引擎生命周期单例：Phase 状态机、`runGen/stopGen` 运行代、健康/重启决策 |
 | `RuntimeInstaller.kt` | rootfs 安装/升级/reset/保留：`filesDir/runtime/{rootfs,rootfs.version,staging}`；`filesDir/runtime.reset` 与 `filesDir/runtime-keep` 在同级 |
-| `DshProcess.kt` | PRoot/direct/tawc 启动、日志泵与 token 识别、`/proc` 归属清理 |
+| `DshProcess.kt` | PRoot/direct/tawc/Droidspaces 启动、日志泵与 token 识别、`/proc` 归属清理 |
+| `DroidspacesSupport.kt` | root 管理器、`droidspaces` CLI 探测、`check --json`、容器 start/stop 命令、bind 归一化 |
+| `DroidspacesGuest.kt` | 容器 PID 1 的 env/command/init 脚本（复用现有 manifest 与 `--patch` overlay） |
 | `DshService.kt` | 前台服务：安装/运行/停止、通知、网络回调 |
 | `SafeMode.kt` | 救援 profile 与失败决策（崩溃后自动重启的策略） |
 | `EngineUpgrade.kt` / `RuntimeUpgradeCompatibility.kt` | 分层升级事务（prepare/pending/version/done）与兼容拒绝 |
 
 > **事实源**：本机引擎状态只认 `RuntimeController.status()`；Dart `LocalRuntimeController` 是只读镜像。
 > `EngineUpgrade` 的 `ENGINE_PATHS` 与 `rtbuild.py` 的清单必须一致，否则升级被兼容检查拒绝。
+
+> **Android 默认后端（2026-11-17）**：`runtimeBackend` 默认 `droidspaces`。rootfs 仍在 App 私有
+> `filesDir/runtime`，安装/升级/安全模式沿用上面的路径；`DroidspacesSupport` 通过 root 管理器
+> 启动 `droidspaces --name dsh-go --rootfs <rootfs> --init /opt/dsh-go/droidspaces-init.sh --net host`。
+> 没有 root、没有 backend/CLI 或内核检查不通过时，本次启动回退 PRoot，并在 `droidspacesError` 里说明。
+> `DroidspacesBackend` 把 APK 里的 droidspaces/busybox 和 boot-module 脚本安装到
+> `/data/local/Droidspaces/bin` 与 `/data/adb/modules/dsh-go-droidspaces`，写入 daemon 标记并追加
+> App 私有 rootfs 的 SELinux 规则；安装后必须重启才应用 sepolicy/daemon。
+> 安全前提、SELinux 宽容模式和未验证边界见 [design/droidspaces-backend.md](design/droidspaces-backend.md)。
 
 ### 3.3 手机操控（`.../phone/`）
 
@@ -398,6 +409,8 @@ DSH npm 前缀（runtime/locks）→ rtbuild 按 series 应用目标平台的补
 - 构建：`tooling/build-apk.sh`（默认 release arm64，`-f x64` / `-f all`），versionCode 按构建时间生成。
 - proot 等可执行文件以 `lib*.so` 放 jniLibs，`useLegacyPackaging = true` 使其解压到 `nativeLibraryDir`。
 - Android 本地连接：原生层启动 `dsh web --host 127.0.0.1 --port 3080 --no-open`，从 stdout 解析 token；
+  Droidspaces 后端用 host 网络运行同一命令，App 仍连 `127.0.0.1:<port>`，因此 cookie/Host 校验不变；
+  容器使用 App 私有 rootfs，不把 DSH 数据搬到 `/data/local/Droidspaces`；
   Dart 侧 `dsh_client` 用 token 换 cookie（`dsh-auth-<base64url(sha256(authority))>`，30 天，绑定 host:port），
   之后 HTTP/WS 带 cookie、不带 Origin；WebView 兜底直接打开 `http://127.0.0.1:3080/?token=…`。
 - iOS Xcode 用 `Runner.xcworkspace`、Swift Package Manager；带本机引擎的构建必须先运行

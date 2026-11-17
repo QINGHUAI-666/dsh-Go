@@ -13576,6 +13576,97 @@ class L10nEn extends L10n {
   String get phoneIosNeedsSetup => 'The runner is not ready. Check the local engine and developer setup.';
 
   @override
+  String get engineBackendTitle => 'Engine runtime';
+
+  @override
+  String get engineBackendDroidspaces => 'Droidspaces';
+
+  @override
+  String get engineBackendProot => 'PRoot compatible';
+
+  @override
+  String get engineBackendHint => 'Droidspaces is faster and bundled. On Magisk/APatch install the backend below and reboot; otherwise it falls back to PRoot.';
+
+  @override
+  String get engineBackendCheck => 'Check root and Droidspaces';
+
+  @override
+  String get engineBackendChecking => 'Checking…';
+
+  @override
+  String engineBackendReady(String version) {
+    return 'Ready · $version';
+  }
+
+  @override
+  String get engineBackendRootDenied => 'Root permission was not granted';
+
+  @override
+  String get engineBackendRootTimeout => 'Root authorization timed out';
+
+  @override
+  String get engineBackendMissing => 'The bundled droidspaces binary cannot run. Check the APK architecture or install Droidspaces.';
+
+  @override
+  String get engineBackendKernel => 'This kernel does not meet Droidspaces requirements';
+
+  @override
+  String engineBackendCheckFailed(String code) {
+    return 'Check failed: $code';
+  }
+
+  @override
+  String get engineBackendSelinux => 'SELinux permissive (only if the container cannot read the app-private rootfs)';
+
+  @override
+  String get engineBackendRestart => 'Changes apply the next time the engine starts';
+
+  @override
+  String engineBackendActive(String mode) {
+    return 'Running: $mode';
+  }
+
+  @override
+  String get engineBackendActiveDroidspaces => 'Droidspaces container';
+
+  @override
+  String get engineBackendActiveProot => 'PRoot compatible';
+
+  @override
+  String get engineBackendFallback => 'Droidspaces unavailable; fell back to PRoot';
+
+  @override
+  String get engineBackendUnchecked => 'Not checked yet';
+
+  @override
+  String get engineBackendInstall => 'Install Droidspaces backend (reboot required)';
+
+  @override
+  String get engineBackendInstallHint => 'Installs the daemon, boot module and SELinux rules. Required on Magisk/APatch; reboot afterwards.';
+
+  @override
+  String get engineBackendInstalling => 'Installing backend…';
+
+  @override
+  String engineBackendInstalled(String version) {
+    return 'Droidspaces backend installed $version';
+  }
+
+  @override
+  String get engineBackendPendingReboot => 'Takes effect after a reboot';
+
+  @override
+  String get engineBackendUninstall => 'Remove Droidspaces backend';
+
+  @override
+  String engineBackendInstallFailed(String code) {
+    return 'Install failed: $code';
+  }
+
+  @override
+  String get engineBackendRebootHint => 'Installed. Reboot the phone before the daemon and SELinux rules take effect.';
+
+  @override
   String get phoneTaskResultReady => 'Task complete · View result';
 
   @override

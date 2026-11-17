@@ -206,6 +206,17 @@ class RuntimeStatus {
     this.launchFailureReason,
     this.tidyingFiles = false,
     this.resetPending = false,
+    this.runtimeBackend = 'proot',
+    this.droidspacesChecked = false,
+    this.droidspacesAvailable = false,
+    this.droidspacesActive = false,
+    this.droidspacesVersion,
+    this.droidspacesError,
+    this.droidspacesPermissive = false,
+    this.droidspacesBackendInstalled = false,
+    this.droidspacesBackendPendingReboot = false,
+    this.droidspacesBackendVersion,
+    this.droidspacesBackendError,
     this.backgroundTask,
     this.longTaskEligible = false,
     this.continuedRun = false,
@@ -295,6 +306,33 @@ class RuntimeStatus {
   /// app opens, and nothing starts until it has.
   final bool resetPending;
 
+  /// `droidspaces` (the Android default) or `proot` (compatibility fallback).
+  final String runtimeBackend;
+
+  /// Whether the native side has probed root + the Droidspaces CLI.
+  final bool droidspacesChecked;
+
+  /// Root, a CLI and a kernel that passed `droidspaces check` are all present.
+  final bool droidspacesAvailable;
+
+  /// The running process is actually a Droidspaces container.
+  final bool droidspacesActive;
+  final String? droidspacesVersion;
+
+  /// Stable probe failure code (`root_denied`, `droidspaces_missing`, ...).
+  final String? droidspacesError;
+
+  /// `--selinux-permissive` is allowed for the next start.
+  final bool droidspacesPermissive;
+
+  /// The root-managed backend (daemon + SELinux module) is installed.
+  final bool droidspacesBackendInstalled;
+
+  /// The backend was installed but the device has not rebooted yet.
+  final bool droidspacesBackendPendingReboot;
+  final String? droidspacesBackendVersion;
+  final String? droidspacesBackendError;
+
   /// iOS: the system is letting the engine keep running while the app is away.
   final bool continuedRun;
 
@@ -310,6 +348,16 @@ class RuntimeStatus {
     'launchSelectedMode': launchSelectedMode,
     'launchSpawned': launchSpawned,
     'launchFailureReason': launchFailureReason,
+    'runtimeBackend': runtimeBackend,
+    'droidspacesChecked': droidspacesChecked,
+    'droidspacesAvailable': droidspacesAvailable,
+    'droidspacesActive': droidspacesActive,
+    'droidspacesVersion': droidspacesVersion,
+    'droidspacesError': droidspacesError,
+    'droidspacesBackendInstalled': droidspacesBackendInstalled,
+    'droidspacesBackendPendingReboot': droidspacesBackendPendingReboot,
+    'droidspacesBackendVersion': droidspacesBackendVersion,
+    'droidspacesBackendError': droidspacesBackendError,
   };
 
   bool get isRunning => phase == RuntimePhase.running && baseUrl != null && token != null;
@@ -370,6 +418,17 @@ class RuntimeStatus {
     launchFailureReason: map['launchFailureReason'] as String?,
     tidyingFiles: map['tidyingFiles'] == true,
     resetPending: map['resetPending'] == true,
+    runtimeBackend: map['runtimeBackend'] as String? ?? 'proot',
+    droidspacesChecked: map['droidspacesChecked'] == true,
+    droidspacesAvailable: map['droidspacesAvailable'] == true,
+    droidspacesActive: map['droidspacesActive'] == true,
+    droidspacesVersion: map['droidspacesVersion'] as String?,
+    droidspacesError: map['droidspacesError'] as String?,
+    droidspacesPermissive: map['droidspacesPermissive'] == true,
+    droidspacesBackendInstalled: map['droidspacesBackendInstalled'] == true,
+    droidspacesBackendPendingReboot: map['droidspacesBackendPendingReboot'] == true,
+    droidspacesBackendVersion: map['droidspacesBackendVersion'] as String?,
+    droidspacesBackendError: map['droidspacesBackendError'] as String?,
     continuedRun: map['continuedRun'] == true,
   );
 }
@@ -450,6 +509,61 @@ class SafeHazard {
 
   /// One Chinese sentence.
   final String detail;
+}
+
+/// Native probe of root + the Droidspaces CLI + its kernel check.
+class DroidspacesStatus {
+  const DroidspacesStatus({
+    required this.checked,
+    required this.root,
+    required this.binary,
+    required this.requirements,
+    required this.version,
+    required this.error,
+  });
+
+  factory DroidspacesStatus.fromMap(Map<Object?, Object?> map) => DroidspacesStatus(
+    checked: map['checked'] == true,
+    root: map['root'] == true,
+    binary: map['binary'] as String?,
+    requirements: map['requirements'] == true ? true : (map['requirements'] == false ? false : null),
+    version: map['version'] as String?,
+    error: map['error'] as String?,
+  );
+
+  final bool checked;
+  final bool root;
+  final String? binary;
+  final bool? requirements;
+  final String? version;
+
+  /// Stable failure code (`root_denied`, `root_timeout`, `droidspaces_missing`,
+  /// `kernel_unsupported`, `check_timeout`); null when usable.
+  final String? error;
+
+  bool get usable => checked && root && binary != null && requirements == true;
+}
+
+/// Native result of installing/removing the root-managed Droidspaces backend.
+class DroidspacesBackendStatus {
+  const DroidspacesBackendStatus({
+    required this.installed,
+    required this.pendingReboot,
+    required this.version,
+    required this.error,
+  });
+
+  factory DroidspacesBackendStatus.fromMap(Map<Object?, Object?> map) => DroidspacesBackendStatus(
+    installed: map['installed'] == true,
+    pendingReboot: map['pendingReboot'] == true,
+    version: map['version'] as String?,
+    error: map['error'] as String?,
+  );
+
+  final bool installed;
+  final bool pendingReboot;
+  final String? version;
+  final String? error;
 }
 
 /// Whether the Linux environment can see the phone's shared storage.
@@ -690,6 +804,49 @@ class RuntimeBridge {
   /// Takes effect on the next start; native code rejects changes while active.
   Future<void> setDirectEngine(bool enabled) => _methods.invokeMethod<void>('setDirectEngine', {'enabled': enabled});
   Future<void> setTawcEngine(bool enabled) => _methods.invokeMethod<void>('setTawcEngine', {'enabled': enabled});
+
+  /// Selects `droidspaces` or `proot` for the next start.
+  Future<String> setRuntimeBackend(String backend) async =>
+      await _methods.invokeMethod<String>('setRuntimeBackend', {'backend': backend}) ?? backend;
+
+  Future<void> setDroidspacesPermissive(bool enabled) =>
+      _methods.invokeMethod<void>('setDroidspacesPermissive', {'enabled': enabled});
+
+  /// Re-probes root and the Droidspaces CLI (blocking on the native worker).
+  Future<DroidspacesStatus?> checkDroidspaces() async {
+    try {
+      final map = await _methods.invokeMapMethod<Object?, Object?>('checkDroidspaces');
+      return map == null ? null : DroidspacesStatus.fromMap(map);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  /// Installs the bundled Droidspaces backend (root module + daemon + SELinux
+  /// rules). A reboot is required before it takes effect.
+  Future<DroidspacesBackendStatus?> installDroidspacesBackend() async {
+    try {
+      final map = await _methods.invokeMapMethod<Object?, Object?>('installDroidspacesBackend');
+      return map == null ? null : DroidspacesBackendStatus.fromMap(map);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  Future<DroidspacesBackendStatus?> uninstallDroidspacesBackend() async {
+    try {
+      final map = await _methods.invokeMapMethod<Object?, Object?>('uninstallDroidspacesBackend');
+      return map == null ? null : DroidspacesBackendStatus.fromMap(map);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
 
   /// Output around the last failure, tokens masked.
   Future<List<String>> failureLog() async => (await _methods.invokeListMethod<String>('failureLog')) ?? const [];

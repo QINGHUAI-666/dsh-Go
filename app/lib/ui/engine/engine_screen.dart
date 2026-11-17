@@ -19,6 +19,7 @@ import '../safe_mode/engine_failure_card.dart';
 import '../safe_mode/safe_mode_card.dart';
 import '../safe_mode/safe_mode_settings.dart';
 import '../settings/background_guide_page.dart';
+import '../settings/droidspaces_backend_settings.dart';
 import '../settings/diagnostics_page.dart';
 import '../settings/settings_widgets.dart';
 import '../shell/page_frame.dart';
@@ -166,6 +167,7 @@ class EngineScreen extends ConsumerWidget {
                   height: logHeight,
                 ),
               ),
+            if (ref.watch(androidSystemFeaturesProvider)) const DroidspacesBackendSettings(),
             // Their home is 设置; the way in from here keeps the name.
             SettingsSection(
               title: l10n.commonMore,

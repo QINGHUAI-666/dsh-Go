@@ -23822,6 +23822,168 @@ abstract class L10n {
   /// **'运行器尚未就绪，请确认本机引擎和开发者环境已配置。'**
   String get phoneIosNeedsSetup;
 
+  /// No description provided for @engineBackendTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'引擎运行方式'**
+  String get engineBackendTitle;
+
+  /// No description provided for @engineBackendDroidspaces.
+  ///
+  /// In zh, this message translates to:
+  /// **'Droidspaces'**
+  String get engineBackendDroidspaces;
+
+  /// No description provided for @engineBackendProot.
+  ///
+  /// In zh, this message translates to:
+  /// **'PRoot 兼容'**
+  String get engineBackendProot;
+
+  /// No description provided for @engineBackendHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'Droidspaces 更快，运行时和后端都已内置；Magisk/APatch 请在下方安装后端并重启，否则回退 PRoot。'**
+  String get engineBackendHint;
+
+  /// No description provided for @engineBackendCheck.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查 root 与 Droidspaces'**
+  String get engineBackendCheck;
+
+  /// No description provided for @engineBackendChecking.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在检查…'**
+  String get engineBackendChecking;
+
+  /// No description provided for @engineBackendReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'已就绪 · {version}'**
+  String engineBackendReady(String version);
+
+  /// No description provided for @engineBackendRootDenied.
+  ///
+  /// In zh, this message translates to:
+  /// **'未获得 root 权限'**
+  String get engineBackendRootDenied;
+
+  /// No description provided for @engineBackendRootTimeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'root 授权超时'**
+  String get engineBackendRootTimeout;
+
+  /// No description provided for @engineBackendMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置的 droidspaces 无法执行，请检查 APK 架构或安装 Droidspaces'**
+  String get engineBackendMissing;
+
+  /// No description provided for @engineBackendKernel.
+  ///
+  /// In zh, this message translates to:
+  /// **'内核不满足 Droidspaces 要求'**
+  String get engineBackendKernel;
+
+  /// No description provided for @engineBackendCheckFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查失败：{code}'**
+  String engineBackendCheckFailed(String code);
+
+  /// No description provided for @engineBackendSelinux.
+  ///
+  /// In zh, this message translates to:
+  /// **'SELinux 宽容模式（只在容器读不到 App 私有 rootfs 时打开）'**
+  String get engineBackendSelinux;
+
+  /// No description provided for @engineBackendRestart.
+  ///
+  /// In zh, this message translates to:
+  /// **'改动在下次启动引擎时生效'**
+  String get engineBackendRestart;
+
+  /// No description provided for @engineBackendActive.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前运行：{mode}'**
+  String engineBackendActive(String mode);
+
+  /// No description provided for @engineBackendActiveDroidspaces.
+  ///
+  /// In zh, this message translates to:
+  /// **'Droidspaces 容器'**
+  String get engineBackendActiveDroidspaces;
+
+  /// No description provided for @engineBackendActiveProot.
+  ///
+  /// In zh, this message translates to:
+  /// **'PRoot 兼容'**
+  String get engineBackendActiveProot;
+
+  /// No description provided for @engineBackendFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'Droidspaces 不可用，已回退 PRoot'**
+  String get engineBackendFallback;
+
+  /// No description provided for @engineBackendUnchecked.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未检查'**
+  String get engineBackendUnchecked;
+
+  /// No description provided for @engineBackendInstall.
+  ///
+  /// In zh, this message translates to:
+  /// **'安装 Droidspaces 后端（需重启）'**
+  String get engineBackendInstall;
+
+  /// No description provided for @engineBackendInstallHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'安装 daemon、开机模块和 SELinux 规则；Magisk/APatch 必须装，装完重启手机。'**
+  String get engineBackendInstallHint;
+
+  /// No description provided for @engineBackendInstalling.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在安装后端…'**
+  String get engineBackendInstalling;
+
+  /// No description provided for @engineBackendInstalled.
+  ///
+  /// In zh, this message translates to:
+  /// **'Droidspaces 后端已安装 {version}'**
+  String engineBackendInstalled(String version);
+
+  /// No description provided for @engineBackendPendingReboot.
+  ///
+  /// In zh, this message translates to:
+  /// **'重启手机后生效'**
+  String get engineBackendPendingReboot;
+
+  /// No description provided for @engineBackendUninstall.
+  ///
+  /// In zh, this message translates to:
+  /// **'卸载 Droidspaces 后端'**
+  String get engineBackendUninstall;
+
+  /// No description provided for @engineBackendInstallFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'安装失败：{code}'**
+  String engineBackendInstallFailed(String code);
+
+  /// No description provided for @engineBackendRebootHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'安装完成；重启手机后 daemon 和 SELinux 规则才生效。'**
+  String get engineBackendRebootHint;
+
   /// No description provided for @phoneTaskResultReady.
   ///
   /// In zh, this message translates to:

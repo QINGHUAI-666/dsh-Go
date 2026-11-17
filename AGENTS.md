@@ -1,6 +1,6 @@
 # AGENTS.md
 
-dsh-Go 是 DeepSeek Harness 的手机应用：Flutter 原生界面 + 纯 Dart 客户端 + 打过补丁的 DSH 引擎运行时。Android 版在 PRoot 里运行 `dsh web`；鸿蒙版共用同一套 Dart，宿主是 ArkTS（`app/ohos/`），引擎跑在 App 进程内的 Node 里（`runtime/ohos/`，见 [docs/architecture.md §3B](docs/architecture.md)）。改动前先读 [CONTRIBUTING.md](CONTRIBUTING.md)（贡献与验证契约）与 [docs/architecture.md](docs/architecture.md)。
+dsh-Go 是 DeepSeek Harness 的手机应用：Flutter 原生界面 + 纯 Dart 客户端 + 打过补丁的 DSH 引擎运行时。Android 版默认在 Droidspaces 容器里运行 `dsh web`（无 root / 无 CLI / 内核不满足时回退 PRoot）；鸿蒙版共用同一套 Dart，宿主是 ArkTS（`app/ohos/`），引擎跑在 App 进程内的 Node 里（`runtime/ohos/`，见 [docs/architecture.md §3B](docs/architecture.md)）。改动前先读 [CONTRIBUTING.md](CONTRIBUTING.md)（贡献与验证契约）与 [docs/architecture.md](docs/architecture.md)。
 
 ## 仓库布局
 
@@ -89,7 +89,7 @@ CI（`.github/workflows/ci.yml`）在 PR 上跑通用检查和改动涉及的部
 ### 真机验证
 
 - Flutter widget 测试需要对应架构的 Flutter 引擎；只有桌面端（x86_64）而设备是 arm64 时，明确写"未运行"及原因。
-- 手机操控、PRoot、直接启动、更新安装相关改动必须在真机上验证；桌面结果不能替代。
+- 手机操控、Droidspaces 容器、PRoot、直接启动、更新安装相关改动必须在真机上验证；桌面结果不能替代。
 - 鸿蒙的系统能力（HMS、后台、通知、语音、卡片）只有真机能证明；`--hms-stubs` 只是让调用方编得过的非官方声明，编过不等于能用。
 
 ## 代码审查原则

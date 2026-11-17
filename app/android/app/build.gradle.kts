@@ -94,7 +94,10 @@ android {
             // (sherpa's own build): either serves both, with the same exports.
             pickFirsts += "**/libonnxruntime.so"
             // Keep the Termux binaries byte-identical to runtime/out (their hashes are in the manifest).
-            keepDebugSymbols += listOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so", "**/libandroid-shmem.so", "**/libtawcroot.so")
+            keepDebugSymbols += listOf(
+                "**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so", "**/libandroid-shmem.so",
+                "**/libtawcroot.so", "**/libdroidspaces.so", "**/libbusybox.so",
+            )
         }
     }
 
