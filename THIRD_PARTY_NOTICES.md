@@ -396,6 +396,18 @@ APK 内置的 Linux 运行时由 `runtime/build-runtime.sh` 构建，以下组�
 | CPython | 3.12.15 | astral-sh/python-build-standalone | PSF-2.0 及其捆绑组件的许可 |
 | pnpm | 11.28.5 | npm | MIT |
 | DeepSeek Harness 主包（`@deepseek-ai/dsh`） | 0.2.1-rc.4 | npm | MIT；构建补丁集合由 `runtime/patches/pins.json` 决定 |
+| Droidspaces（`libdroidspaces.so`） | 7.2.0 | https://github.com/ravindu644/Droidspaces-OSS ，tag `v7.2.0` | GPL-3.0；版权归 ravindu644 及贡献者，许可证全文随 App 许可页展示 |
+| Droidspaces BusyBox（`libbusybox.so`） | 随 Droidspaces 7.2.0 | https://github.com/Droidspaces/busybox-droidspaces ，commit `d14464f1` | GPL-2.0；版权归 BusyBox 贡献者 |
+| Droidspaces boot module（`assets/droidspaces/*.sh`、`module.prop`、`sepolicy.rule`） | 7.2.0 | 同上 Droidspaces tag `v7.2.0` | GPL-3.0；未修改上游脚本，只改 `module.prop` 的 id/name/versionCode 和追加 dsh-go 的 `app_data_file` 规则 |
+
+Droidspaces 的对应源码是上游 tag `v7.2.0`（https://github.com/ravindu644/Droidspaces-OSS/tree/v7.2.0 ）；二进制取自同一 release 的 `droidspaces-v7.2.0-cdadb9eb.tar.gz`，arm64 与 x86_64 两个文件分别以 `libdroidspaces.so` 放进 `app/android/app/src/main/jniLibs/<abi>/`，SHA-256：
+
+- `arm64-v8a/libdroidspaces.so`: `54dac6cc9cdc18a9cc61eeaaf7587c25dadd65e20e544a4f470e4b77c9e5db07`
+- `x86_64/libdroidspaces.so`: `824392aaa34a86eaa740693ebbbe13ba2ff6d4d308eeb72e5e07529d4effd521`
+- `arm64-v8a/libbusybox.so`: `cf48c0cffec3dcfba6298ca14a8b41ff6e18eb7419e76c882168ea08f03c5026`
+- `x86_64/libbusybox.so`: `16bd2c480dc09dfaa51f2c1d0129bbc889e595266987ae55efafe6191aeedae1`
+
+按 GPL-3.0 分发时保留上述来源、版本、版权和许可证；dsh-go 的 APK 源码按 AGPL-3.0 提供，Droidspaces 自身仍按 GPL-3.0。未修改上游二进制。
 
 GPL / LGPL 组件的对应源码：proot、libtalloc、libandroid-shmem 的二进制取自 Termux 官方 apt 仓库（https://packages.termux.dev/apt/termux-main ），`runtime/build-runtime.sh` 固定了每个 .deb 的 SHA-256。源码分别在 https://github.com/termux/proot （tag `v5.1.107.102`，构建时一并下载并核对哈希）、https://www.samba.org/ftp/talloc/ （2.5.0）、https://github.com/termux/libandroid-shmem （0.7）；Termux 的构建配方在 https://github.com/termux/termux-packages 。本项目对这三个二进制的修改只有上面说的 DT_NEEDED / DT_SONAME 改名。
 

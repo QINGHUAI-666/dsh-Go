@@ -135,6 +135,16 @@ void _environment(StringBuffer b, DiagnosticsSnapshot s) {
       '${st.launchFailureReason == null ? '' : ' · 最近失败 ${st.launchFailureReason}'}'
       '${st.directEngineFallbackReason == null ? '' : ' · 回退 ${st.directEngineFallbackReason}'}',
     )
+    ..writeln(
+      '- 引擎后端：${st.runtimeBackend}'
+      '${st.droidspacesAvailable ? ' · Droidspaces 可用${st.droidspacesVersion == null ? '' : '（${st.droidspacesVersion}）'}' : ' · Droidspaces 不可用${st.droidspacesError == null ? '' : '（${st.droidspacesError}）'}'}'
+      '${st.droidspacesActive ? ' · 当前容器' : ''}',
+    )
+    ..writeln(
+      '- Droidspaces 后端：${st.droidspacesBackendInstalled ? '已安装${st.droidspacesBackendVersion == null ? '' : '（${st.droidspacesBackendVersion}）'}' : '未安装'}'
+      '${st.droidspacesBackendPendingReboot ? ' · 待重启' : ''}'
+      '${st.droidspacesBackendError == null ? '' : ' · 错误 ${st.droidspacesBackendError}'}',
+    )
     ..writeln('- 引擎地址：${st.baseUrl ?? '—'}（token 不回传）');
   if (st.error case final error? when error.isNotEmpty) b.writeln('- 最近错误：$error');
   if (st.networkBlocked) b.writeln('- 系统限制联网：${_time(st.networkBlockedAt ?? s.at)} 起');

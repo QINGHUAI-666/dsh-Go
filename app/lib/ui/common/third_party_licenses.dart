@@ -27,6 +27,10 @@ void registerThirdPartyLicenses({String? os}) {
     }
     final unicodeNotice = await rootBundle.loadString('assets/licenses/unicode-15.0.txt');
     yield LicenseEntryWithLineBreaks(<String>['Unicode Character Database (15.0.0)'], unicodeNotice);
+    // BusyBox bundled with Droidspaces (jniLibs/libbusybox.so), GPL-2.0.
+    yield LicenseEntryWithLineBreaks(<String>[
+      'BusyBox (Droidspaces)',
+    ], await rootBundle.loadString('assets/licenses/busybox-GPL-2.0.txt'));
     // The libraries a card's scripts find on the tavern's canvas page, as 酒馆助手's pages
     // give them; each package's own LICENSE file, verbatim.
     yield LicenseEntryWithLineBreaks(<String>[
@@ -73,6 +77,12 @@ const _inTheApk = <LicenseEntry>[
   LicenseEntryWithLineBreaks(<String>['smart-turn'], _smartTurnBsd2),
   // Native launcher built from source (runtime/tawcroot/build.py).
   LicenseEntryWithLineBreaks(<String>['tawcroot (tawc)'], _tawcMit),
+  // Native container runtime bundled as jniLibs (see THIRD_PARTY_NOTICES.md).
+  LicenseEntryWithLineBreaks(
+    <String>['Droidspaces'],
+    'Droidspaces 7.2.0\nCopyright (C) 2026 ravindu644 and contributors\n'
+    'Source: https://github.com/ravindu644/Droidspaces-OSS/tree/v7.2.0\n\n$_gpl3',
+  ),
   // flutter_webrtc's own MIT licence comes with its pub package; these are its NOTICE and
   // the native WebRTC it bundles.
   LicenseEntryWithLineBreaks(<String>['flutter_webrtc'], _flutterWebrtcNotice + _apache2),

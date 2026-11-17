@@ -51,6 +51,9 @@ class RuntimeController private constructor(private val app: Context) : DshProce
     private val lkgFile = File(app.filesDir, "runtime/lkg/lkg.json")
     private val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val workspaceRecovery = WorkspaceRecoveryMode(prefs.getBoolean(K_WORKSPACE_RECOVERY, false))
+    @Volatile private var droidspacesStatus: DroidspacesSupport.Status = DroidspacesSupport.cached()
+    @Volatile private var droidspacesBackend: DroidspacesBackend.Status =
+        DroidspacesBackend.Status(false, false, null, null)
 
     val manifest: RuntimeManifest by lazy { RuntimeManifest.load(app) }
     private val installer by lazy { RuntimeInstaller(app, manifest, ::note) }
@@ -158,7 +161,75 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         "launchSpawned" to (lastLaunch?.spawned == true),
         "launchFailureReason" to lastLaunch?.failureReason,
         "tidyingFiles" to tidyingFiles,
+        "runtimeBackend" to runtimeBackend().wire,
+        "droidspacesChecked" to droidspacesStatus.checked,
+        "droidspacesAvailable" to droidspacesStatus.usable,
+        "droidspacesActive" to (process?.executionMode == "droidspaces"),
+        "droidspacesVersion" to droidspacesStatus.version,
+        "droidspacesError" to droidspacesStatus.error,
+        "droidspacesPermissive" to prefs.getBoolean(K_DROIDSPACES_PERMISSIVE, false),
+        "droidspacesBackendInstalled" to droidspacesBackend.installed,
+        "droidspacesBackendPendingReboot" to droidspacesBackend.pendingReboot,
+        "droidspacesBackendVersion" to droidspacesBackend.version,
+        "droidspacesBackendError" to droidspacesBackend.error,
     )
+
+    private fun runtimeBackend(): RuntimeBackend =
+        RuntimeBackend.parse(prefs.getString(K_RUNTIME_BACKEND, null))
+
+    /**
+     * Selects the execution world for the next start. A running process never
+     * changes its world; the caller must stop the engine first.
+     */
+    @Synchronized fun setRuntimeBackend(backend: RuntimeBackend) {
+        check(process == null && phase !in setOf(Phase.STARTING, Phase.RUNNING, Phase.STOPPING, Phase.INSTALLING) && !resetting) {
+            "stop the engine before changing its runtime backend"
+        }
+        prefs.edit().putString(K_RUNTIME_BACKEND, backend.wire).apply()
+        emitStatus()
+    }
+
+    /** Droidspaces' SELinux-permissive switch is off unless the user accepts it. */
+    @Synchronized fun setDroidspacesPermissive(enabled: Boolean) {
+        check(process == null && phase !in setOf(Phase.STARTING, Phase.RUNNING, Phase.STOPPING, Phase.INSTALLING) && !resetting) {
+            "stop the engine before changing its runtime backend"
+        }
+        prefs.edit().putBoolean(K_DROIDSPACES_PERMISSIVE, enabled).apply()
+        emitStatus()
+    }
+
+    /** Re-probes root, the droidspaces binary and its kernel check on the runtime worker. */
+    fun refreshDroidspaces(onDone: (DroidspacesSupport.Status) -> Unit) {
+        worker.execute {
+            val next = DroidspacesSupport.probe(app, force = true)
+            droidspacesStatus = next
+            droidspacesBackend = DroidspacesBackend.status(app)
+            emitStatus()
+            main.post { onDone(next) }
+        }
+    }
+
+    fun installDroidspacesBackend(onDone: (DroidspacesBackend.Status) -> Unit) {
+        worker.execute {
+            DroidspacesBackend.install(app, { line -> log(line, "system") }) { status ->
+                droidspacesBackend = status
+                droidspacesStatus = DroidspacesSupport.probe(app, force = true)
+                emitStatus()
+                main.post { onDone(status) }
+            }
+        }
+    }
+
+    fun uninstallDroidspacesBackend(onDone: (DroidspacesBackend.Status) -> Unit) {
+        worker.execute {
+            DroidspacesBackend.uninstall(app) { status ->
+                droidspacesBackend = status
+                droidspacesStatus = DroidspacesSupport.probe(app, force = true)
+                emitStatus()
+                main.post { onDone(status) }
+            }
+        }
+    }
 
     private fun directEngine() = DirectLaunch.Preference(
         saved = if (prefs.contains(K_DIRECT_ENGINE)) prefs.getBoolean(K_DIRECT_ENGINE, false) else null,
@@ -504,6 +575,34 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         timeline.requested()
         worker.execute {
             var launched: DshProcess? = null
+            // Droidspaces is the preferred world. A device without root, without
+            // the CLI, or without the kernel requirements keeps working through
+            // PRoot; the status page says which one this start actually chose.
+            // The root probe can wait for the root manager, so it belongs on this
+            // worker, never on the service/main thread.
+            var useDroidspaces = false
+            if (runtimeBackend() == RuntimeBackend.DROIDSPACES) {
+                val backend = DroidspacesBackend.status(app)
+                droidspacesBackend = backend
+                if (backend.pendingReboot) {
+                    log("[dsh-app] droidspaces backend installed but reboot is pending; falling back to proot for this start", "system")
+                } else if (backend.error == "root_denied" || backend.error == "root_timeout") {
+                    // Do not ask the root manager twice in one start.
+                    droidspacesStatus = DroidspacesSupport.Status(true, false, null, null, null, backend.error)
+                    log("[dsh-app] root unavailable for droidspaces (${backend.error}); falling back to proot", "system")
+                } else {
+                    val probed = try {
+                        DroidspacesSupport.probe(app)
+                    } catch (e: Exception) {
+                        DroidspacesSupport.Status(true, false, null, null, null, e.javaClass.simpleName)
+                    }
+                    droidspacesStatus = probed
+                    useDroidspaces = probed.usable
+                    if (!useDroidspaces) {
+                        log("[dsh-app] droidspaces unavailable (${probed.error ?: "unknown"}); falling back to proot", "system")
+                    }
+                }
+            }
             try {
                 try {
                     installer.cleanupCommittedUpgrade()
@@ -579,7 +678,9 @@ class RuntimeController private constructor(private val app: Context) : DshProce
                 val direct = directEngine()
                 val tawc = tawcEngine()
                 p.start(env, if (storage) PhoneStorage.binds() else emptyList(), safe, phone, direct.requested, direct.failed, searchOverlay, authOverlay, speechOverlay,
-                    tawcEngine = tawc.saved == true, tawcFailed = tawc.failed) { actualDirect ->
+                    tawcEngine = tawc.saved == true, tawcFailed = tawc.failed,
+                    droidspaces = useDroidspaces,
+                    droidspacesPermissive = prefs.getBoolean(K_DROIDSPACES_PERMISSIVE, false)) { actualDirect ->
                     // SafeMode.prepare writes its own briefing; leave the original home untouched.
                     if (!safe) GuestSetup.writeAgentsMd(
                         installer.rootfs, storage, phone && PhoneControl.switchedOn(app), pendingVisualReplies, actualDirect,
@@ -1189,6 +1290,10 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         private const val K_TAWC_ENGINE = "tawcEngine"
         /** Runtime version tawcroot failed to start DSH with. */
         private const val K_TAWC_FAILED = "tawcEngineFailedRuntime"
+        /** `droidspaces` (default) or `proot` (compatibility fallback). */
+        private const val K_RUNTIME_BACKEND = "runtimeBackend"
+        /** Opt-in `--selinux-permissive` for a rootfs under app data. */
+        private const val K_DROIDSPACES_PERMISSIVE = "droidspacesPermissive"
         private const val MAIN_FAILURE_LOG = "failure-normal.log"
         private const val LATEST_FAILURE_LOG = "failure-latest.log"
 

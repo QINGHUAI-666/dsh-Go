@@ -12893,6 +12893,97 @@ class L10nZh extends L10n {
   String get phoneIosNeedsSetup => '运行器尚未就绪，请确认本机引擎和开发者环境已配置。';
 
   @override
+  String get engineBackendTitle => '引擎运行方式';
+
+  @override
+  String get engineBackendDroidspaces => 'Droidspaces';
+
+  @override
+  String get engineBackendProot => 'PRoot 兼容';
+
+  @override
+  String get engineBackendHint => 'Droidspaces 更快，运行时和后端都已内置；Magisk/APatch 请在下方安装后端并重启，否则回退 PRoot。';
+
+  @override
+  String get engineBackendCheck => '检查 root 与 Droidspaces';
+
+  @override
+  String get engineBackendChecking => '正在检查…';
+
+  @override
+  String engineBackendReady(String version) {
+    return '已就绪 · $version';
+  }
+
+  @override
+  String get engineBackendRootDenied => '未获得 root 权限';
+
+  @override
+  String get engineBackendRootTimeout => 'root 授权超时';
+
+  @override
+  String get engineBackendMissing => '内置的 droidspaces 无法执行，请检查 APK 架构或安装 Droidspaces';
+
+  @override
+  String get engineBackendKernel => '内核不满足 Droidspaces 要求';
+
+  @override
+  String engineBackendCheckFailed(String code) {
+    return '检查失败：$code';
+  }
+
+  @override
+  String get engineBackendSelinux => 'SELinux 宽容模式（只在容器读不到 App 私有 rootfs 时打开）';
+
+  @override
+  String get engineBackendRestart => '改动在下次启动引擎时生效';
+
+  @override
+  String engineBackendActive(String mode) {
+    return '当前运行：$mode';
+  }
+
+  @override
+  String get engineBackendActiveDroidspaces => 'Droidspaces 容器';
+
+  @override
+  String get engineBackendActiveProot => 'PRoot 兼容';
+
+  @override
+  String get engineBackendFallback => 'Droidspaces 不可用，已回退 PRoot';
+
+  @override
+  String get engineBackendUnchecked => '尚未检查';
+
+  @override
+  String get engineBackendInstall => '安装 Droidspaces 后端（需重启）';
+
+  @override
+  String get engineBackendInstallHint => '安装 daemon、开机模块和 SELinux 规则；Magisk/APatch 必须装，装完重启手机。';
+
+  @override
+  String get engineBackendInstalling => '正在安装后端…';
+
+  @override
+  String engineBackendInstalled(String version) {
+    return 'Droidspaces 后端已安装 $version';
+  }
+
+  @override
+  String get engineBackendPendingReboot => '重启手机后生效';
+
+  @override
+  String get engineBackendUninstall => '卸载 Droidspaces 后端';
+
+  @override
+  String engineBackendInstallFailed(String code) {
+    return '安装失败：$code';
+  }
+
+  @override
+  String get engineBackendRebootHint => '安装完成；重启手机后 daemon 和 SELinux 规则才生效。';
+
+  @override
   String get phoneTaskResultReady => '任务完成 · 查看结果';
 
   @override

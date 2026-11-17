@@ -1,0 +1,6 @@
+id=dsh-go-droidspaces
+name=dsh-go Droidspaces backend
+version=v7.2.0
+versionCode=72001607
+author=dsh-go (bundled Droidspaces by ravindu644)
+description=Starts the Droidspaces daemon and applies its SELinux rules for dsh-go's built-in container runtime.

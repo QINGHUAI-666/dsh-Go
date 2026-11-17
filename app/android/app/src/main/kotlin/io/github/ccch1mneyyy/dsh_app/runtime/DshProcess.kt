@@ -74,6 +74,10 @@ class DshProcess(
     var tawc: Boolean = false
         private set
 
+    /** This process is a Droidspaces container launcher. */
+    @Volatile private var containerMode = false
+    @Volatile private var containerBinary: String? = null
+
     val launchDiagnostics = LaunchDiagnostics()
     val executionMode: String? get() = launchDiagnostics.currentMode(process?.isAlive == true)
 
@@ -84,8 +88,15 @@ class DshProcess(
      * [binds] are extra proot `-b host:guest` mounts, inserted before the guest command.
      * [safe] boots the rescue profile instead of `web` (see [SafeMode.profileArg]).
      */
-    fun start(guestEnv: Map<String, String>, binds: List<String> = emptyList(), safe: Boolean = false, phone: Boolean = false, directEngine: Boolean = false, directFailed: Boolean = false, searchOverlay: Boolean = false, authOverlay: Boolean = false, speechOverlay: Boolean = false, tawcEngine: Boolean = false, tawcFailed: Boolean = false, onLaunchMethod: ((Boolean) -> Unit)? = null) {
+    fun start(guestEnv: Map<String, String>, binds: List<String> = emptyList(), safe: Boolean = false, phone: Boolean = false, directEngine: Boolean = false, directFailed: Boolean = false, searchOverlay: Boolean = false, authOverlay: Boolean = false, speechOverlay: Boolean = false, tawcEngine: Boolean = false, tawcFailed: Boolean = false, droidspaces: Boolean = false, droidspacesPermissive: Boolean = false, onLaunchMethod: ((Boolean) -> Unit)? = null) {
         check(process == null) { "already started" }
+        if (droidspaces) {
+            startDroidspaces(
+                guestEnv, binds, safe, phone, searchOverlay, authOverlay, speechOverlay,
+                droidspacesPermissive, onLaunchMethod,
+            )
+            return
+        }
         // tawcroot wins over Direct when both are on; like Direct it needs PRoot's fake hard links gone.
         val tawcWanted = tawcEngine && !safe
         val tawcMissing = if (tawcWanted) TawcrootLaunch.unavailable(context.applicationInfo.nativeLibraryDir, android.os.Build.VERSION.SDK_INT) else null
@@ -213,6 +224,110 @@ class DshProcess(
         if (directFallbackReason == TawcrootLaunch.FAILED) listener.onLog("[dsh-app] tawcroot fallback: tawcroot failed to start before with this runtime; turn tawcroot on again to retry", "system")
         listener.onLog("[dsh-app] launch method: ${if (tawc) "tawcroot" else if (direct) "direct-glibc" else "proot"}${if ((directEngine || tawcEngine) && safe) " (safe recovery)" else ""}", "system")
         listener.onLog("[dsh-app] launching ${builder.command().joinToString(" ") { redact(it) }}", "system")
+        spawn(builder, onLaunchMethod)
+    }
+
+    /**
+     * Starts the composed DSH command in a Droidspaces container. The rootfs is
+     * the same app-private tree the installer owns; Droidspaces runs it as PID 1
+     * through the root manager. Host networking keeps loopback and the phone
+     * control MCP socket reachable.
+     */
+    private fun startDroidspaces(
+        guestEnv: Map<String, String>,
+        binds: List<String>,
+        safe: Boolean,
+        phone: Boolean,
+        searchOverlay: Boolean,
+        authOverlay: Boolean,
+        speechOverlay: Boolean,
+        permissive: Boolean,
+        onLaunchMethod: ((Boolean) -> Unit)?,
+    ) {
+        val support = DroidspacesSupport.cached().takeIf { it.usable } ?: DroidspacesSupport.probe(context)
+        check(support.usable) { "Droidspaces is not available" }
+        val binary = checkNotNull(support.binary) { "Droidspaces binary is missing" }
+        containerMode = true
+        containerBinary = binary
+        direct = false
+        tawc = false
+        directFallbackReason = null
+        launchDiagnostics.selected("droidspaces", null)
+        // A previous PRoot run may have left a pid file; nothing under the
+        // container reads it, but removing it keeps the next PRoot fallback clean.
+        File(rootfs, "tmp/dsh-web.pid").delete()
+        port = pickPort()
+        val vars = mapOf(
+            "{NATIVE_LIB_DIR}" to context.applicationInfo.nativeLibraryDir,
+            "{ROOTFS}" to rootfs.canonicalPath,
+            "{TMP}" to File(context.cacheDir, "proot-tmp").apply { mkdirs() }.absolutePath,
+            "{FILES_DIR}" to context.filesDir.absolutePath,
+            "{PORT}" to port.toString(),
+        )
+        fun expand(s: String) = vars.entries.fold(s) { acc, (k, v) -> acc.replace(k, v) }
+
+        val effectiveGuestEnv = linkedMapOf<String, String>().apply {
+            putAll(guestEnv)
+            put("DSH_GO_RUNTIME_ROOT", rootfs.canonicalPath)
+        }
+        val commandArgs = ArrayList<String>()
+        var afterEnv = false
+        var profileSelected = false
+        var searchPending = !safe && searchOverlay && SessionSearchGuest.file(rootfs).isFile
+        var authPending = !safe && authOverlay && AppAuthGuest.file(rootfs).isFile
+        var speechPending = !safe && speechOverlay && SpeechGuest.file(rootfs).isFile
+        for (arg in manifest.launchArgv) {
+            if (arg == "/usr/bin/env") {
+                afterEnv = true
+                continue
+            }
+            if (!afterEnv || arg == GUEST_ENV) continue
+            val selected = SafeMode.profileArg(arg, safe)
+            if (selected != null) profileSelected = true
+            val withPhone = if (phone && !safe && !phoneMounted) PhoneGuest.launchArg(selected ?: arg) else null
+            if (withPhone != null) phoneMounted = true
+            val withSearch = if (searchPending) SessionSearchGuest.launchArg(withPhone ?: selected ?: arg) else null
+            if (withSearch != null) searchPending = false
+            val withAuth = if (authPending) AppAuthGuest.launchArg(withSearch ?: withPhone ?: selected ?: arg) else null
+            if (withAuth != null) authPending = false
+            val withSpeech = if (speechPending) SpeechGuest.launchArg(withAuth ?: withSearch ?: withPhone ?: selected ?: arg) else null
+            if (withSpeech != null) speechPending = false
+            commandArgs += expand(withSpeech ?: withAuth ?: withSearch ?: withPhone ?: selected ?: arg)
+        }
+        check(!safe || profileSelected) { "safe mode: this runtime's launch command has no `dsh web` to replace" }
+        val command = commandArgs.lastOrNull { it.isNotBlank() }
+            ?: error("runtime manifest has no guest command")
+        DroidspacesGuest.prepare(rootfs, effectiveGuestEnv, command)
+        val start = DroidspacesSupport.startCommand(binary, rootfs, binds, permissive)
+        val builder = ProcessBuilder(DroidspacesSupport.suPath(), "-c", start).directory(context.filesDir)
+        val env = builder.environment()
+        env.clear()
+        env["PATH"] = "/system/bin:/system/xbin"
+        env["HOME"] = context.filesDir.absolutePath
+        env["ANDROID_ROOT"] = System.getenv("ANDROID_ROOT") ?: "/system"
+        env["ANDROID_DATA"] = System.getenv("ANDROID_DATA") ?: "/data"
+        listener.onLog(
+            "[dsh-app] launch method: droidspaces container${if (safe) " (safe recovery)" else ""}",
+            "system",
+        )
+        if (permissive) listener.onLog("[dsh-app] droidspaces: SELinux permissive during this run", "system")
+        listener.onLog("[dsh-app] launching ${redactCommand(start)}", "system")
+        // The managed AGENTS.md is written before DSH starts, exactly as the
+        // PRoot/Direct path does; a container is not "direct" for that text.
+        onLaunchMethod?.invoke(false)
+        spawn(builder, null)
+    }
+
+    /** Splits the root command enough to mask KEY=value arguments in the log. */
+    private fun redactCommand(command: String): String =
+        command.split(' ').joinToString(" ") { redact(it) }
+
+    /**
+     * Shared process pump, token deadline and exit reporting. PRoot/Direct and
+     * Droidspaces both hand a [ProcessBuilder] here, so token detection and
+     * `stop()` semantics cannot drift between the two launchers.
+     */
+    private fun spawn(builder: ProcessBuilder, onLaunchMethod: ((Boolean) -> Unit)?) {
         // stop() came in while this was being prepared: don't launch at all.
         if (stopping) {
             listener.onExit(this, 0, true)
@@ -241,7 +356,7 @@ class DshProcess(
             stopThread?.join()
             // An unexpected parent exit can leave tracees behind too. Keep the
             // controller's ownership until this UID sweep has finished.
-            if (stopThread == null) killStrays()
+            if (stopThread == null && !containerMode) killStrays()
             listener.onExit(this, code, expectedExit)
         }
         // The port deadline starts only after a token. A stuck loader/Node can emit nothing.
@@ -341,20 +456,32 @@ class DshProcess(
         val p = process ?: return
         stopper = thread(name = "dsh-stop", isDaemon = true) {
             try {
-                val node = if (p.isAlive) guestRecord() else null
-                val proot = if (direct || tawc) null else node?.let { child -> processSnapshot().records.firstOrNull { it.pid == child.parent && it.proot } }
-                if (node != null) signalOwned(node, OsConstants.SIGTERM)
-                else if ((direct || tawc) && p.isAlive) p.destroy() // loader/preload may fail before writing its pid file
-                if (!waitExit(p, 5000) && proot != null) signalOwned(proot, OsConstants.SIGQUIT)
-                // Tawcroot needs no extra QUIT grace; retain PRoot and Direct's existing wait.
-                if (!tawc) waitExit(p, 2000)
+                if (containerMode) {
+                    // The container's PID 1 is DSH itself. Stop through Droidspaces,
+                    // then let the foreground console process end; a wedged CLI is
+                    // the only case that needs the local process destroyed.
+                    (containerBinary ?: DroidspacesSupport.cached().binary)?.let { DroidspacesSupport.stopContainer(it) }
+                    if (!waitExit(p, 15_000)) p.destroy()
+                } else {
+                    val node = if (p.isAlive) guestRecord() else null
+                    val proot = if (direct || tawc) null else node?.let { child ->
+                        processSnapshot().records.firstOrNull { it.pid == child.parent && it.proot }
+                    }
+                    if (node != null) signalOwned(node, OsConstants.SIGTERM)
+                    else if ((direct || tawc) && p.isAlive) p.destroy() // loader/preload may fail before writing its pid file
+                    if (!waitExit(p, 5000) && proot != null) signalOwned(proot, OsConstants.SIGQUIT)
+                    // Tawcroot needs no extra QUIT grace; retain PRoot and Direct's existing wait.
+                    if (!tawc) waitExit(p, 2000)
+                }
             } finally {
                 try {
                     if (p.isAlive) p.destroyForcibly()
                 } finally {
                     // Reap tracees before waiting: an OEM Process.waitFor may not
                     // return until they exit. The waiter still retains this owner.
-                    killStrays()
+                    // A container's processes are root-owned and are stopped by
+                    // Droidspaces, not by this UID sweep.
+                    if (!containerMode) killStrays()
                     p.waitFor()
                 }
             }

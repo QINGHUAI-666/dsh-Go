@@ -203,6 +203,28 @@ class RuntimePlugin :
                     result.error("launch_method_unavailable", error.message, null)
                 }
             }
+            "setRuntimeBackend" -> {
+                try {
+                    val backend = RuntimeBackend.parse(call.argument<String>("backend"))
+                    controller.setRuntimeBackend(backend)
+                    result.success(backend.wire)
+                } catch (error: IllegalStateException) {
+                    result.error("runtime_backend_unavailable", error.message, null)
+                }
+            }
+            "setDroidspacesPermissive" -> {
+                try {
+                    controller.setDroidspacesPermissive(call.argument<Boolean>("enabled") == true)
+                    result.success(null)
+                } catch (error: IllegalStateException) {
+                    result.error("runtime_backend_unavailable", error.message, null)
+                }
+            }
+            "checkDroidspaces" -> controller.refreshDroidspaces { status -> result.success(status.toMap()) }
+            "installDroidspacesBackend" ->
+                controller.installDroidspacesBackend { status -> result.success(status.toMap()) }
+            "uninstallDroidspacesBackend" ->
+                controller.uninstallDroidspacesBackend { status -> result.success(status.toMap()) }
             "failureLog" -> result.success(controller.failureLog())
             "batteryExempt" -> {
                 val pm = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
