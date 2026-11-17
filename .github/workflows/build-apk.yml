@@ -162,6 +162,9 @@ jobs:
           bash runtime/build-runtime.sh "$RUNTIME_ABI"
           python3 -I tooling/check_runtime_bundle.py "${{ steps.target.outputs.flavor }}"
 
+      - name: Merge localization inputs
+        run: python3 app/tool/l10n_merge.py --no-gen
+
       - name: Flutter dependencies and local.properties
         working-directory: app
         run: |

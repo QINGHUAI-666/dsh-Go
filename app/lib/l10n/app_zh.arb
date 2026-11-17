@@ -7434,7 +7434,7 @@
   "engineBackendTitle": "引擎运行方式",
   "engineBackendDroidspaces": "Droidspaces",
   "engineBackendProot": "PRoot 兼容",
-  "engineBackendHint": "Droidspaces 更快，但需要 root 和已安装的 Droidspaces；不可用时回退 PRoot。",
+  "engineBackendHint": "Droidspaces 更快，运行时和后端都已内置；Magisk/APatch 请在下方安装后端并重启，否则回退 PRoot。",
   "engineBackendCheck": "检查 root 与 Droidspaces",
   "engineBackendChecking": "正在检查…",
   "engineBackendReady": "已就绪 · {version}",
@@ -7447,7 +7447,7 @@
   },
   "engineBackendRootDenied": "未获得 root 权限",
   "engineBackendRootTimeout": "root 授权超时",
-  "engineBackendMissing": "未找到 droidspaces，请先安装 Droidspaces",
+  "engineBackendMissing": "内置的 droidspaces 无法执行，请检查 APK 架构或安装 Droidspaces",
   "engineBackendKernel": "内核不满足 Droidspaces 要求",
   "engineBackendCheckFailed": "检查失败：{code}",
   "@engineBackendCheckFailed": {
@@ -7471,6 +7471,28 @@
   "engineBackendActiveProot": "PRoot 兼容",
   "engineBackendFallback": "Droidspaces 不可用，已回退 PRoot",
   "engineBackendUnchecked": "尚未检查",
+  "engineBackendInstall": "安装 Droidspaces 后端（需重启）",
+  "engineBackendInstallHint": "安装 daemon、开机模块和 SELinux 规则；Magisk/APatch 必须装，装完重启手机。",
+  "engineBackendInstalling": "正在安装后端…",
+  "engineBackendInstalled": "Droidspaces 后端已安装 {version}",
+  "@engineBackendInstalled": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "engineBackendPendingReboot": "重启手机后生效",
+  "engineBackendUninstall": "卸载 Droidspaces 后端",
+  "engineBackendInstallFailed": "安装失败：{code}",
+  "@engineBackendInstallFailed": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "engineBackendRebootHint": "安装完成；重启手机后 daemon 和 SELinux 规则才生效。",
   "phoneTaskResultReady": "任务完成 · 查看结果",
   "phoneTaskEndedResult": "任务已结束 · 查看结果",
   "phoneBackgroundGuideTitle": "后台确认与返回",
